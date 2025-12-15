@@ -14,6 +14,7 @@
 <meta name="apple-mobile-web-app-title" content="為了錢錢">
 
 <style>
+/* ===== 基本 ===== */
 body{
   font-family: system-ui,-apple-system,"Segoe UI",Arial,sans-serif;
   background:#f6f7fb;
@@ -23,6 +24,7 @@ body{
   align-items:center;
   justify-content:center;
   padding:24px;
+  overflow-x:hidden;
 }
 .card{
   width:min(820px,98vw);
@@ -31,16 +33,16 @@ body{
   box-shadow:0 8px 24px rgba(0,0,0,.08);
   padding:18px;
 }
-h1{font-size:20px;margin:0 0 10px}
+h1{font-size:20px;margin:0 0 8px}
 .hint{color:#555;font-size:13px;margin-bottom:14px;line-height:1.6}
 
+/* ===== 外圈棋盤 ===== */
 .ringBoard{
   display:grid;
   grid-template-columns:96px 1fr 1fr 1fr 96px;
   grid-template-rows:56px 1fr 1fr 1fr 56px;
   gap:10px;
 }
-
 .ringBtn{
   border:0;border-radius:12px;
   padding:8px 6px;
@@ -54,8 +56,10 @@ h1{font-size:20px;margin:0 0 10px}
 .bCol{background:#10b981}
 .bDiag{background:#6f42c1}
 
+/* ===== 九宮格 ===== */
 .gridWrap{
-  grid-column:2/5;grid-row:2/5;
+  grid-column:2/5;
+  grid-row:2/5;
   background:#f1f3f9;
   border-radius:16px;
   padding:12px;
@@ -66,7 +70,6 @@ h1{font-size:20px;margin:0 0 10px}
   min-width:320px;
   min-height:320px;
 }
-
 .cell{
   background:#fff;
   border-radius:14px;
@@ -82,16 +85,19 @@ h1{font-size:20px;margin:0 0 10px}
   font-size:11px;color:#888;
 }
 input{
-  width:70%;height:55%;
+  width:70%;
+  height:55%;
   text-align:center;
-  font-size:24px;
+  font-size:24px; /* >=16px，iOS 不會自動放大 */
   border:1px solid #d8dbea;
   border-radius:12px;
   outline:none;
 }
 
+/* 防誤觸放大 */
 .ringBtn,.btn,input{touch-action:manipulation}
 
+/* ===== 操作區 ===== */
 .actions{margin-top:14px;display:flex;gap:10px;flex-wrap:wrap}
 .btn{
   border:0;border-radius:12px;
@@ -111,45 +117,63 @@ input{
   white-space:pre-wrap;
   min-height:120px;
 }
+
+/* ===== 手機適配（修正 iPhone 13 超出） ===== */
+@media (max-width:430px){
+  body{padding:10px;align-items:flex-start}
+  .card{width:100%;padding:12px}
+  .ringBoard{
+    gap:8px;
+    grid-template-columns:64px 1fr 1fr 1fr 64px;
+    grid-template-rows:52px 1fr 1fr 1fr 52px;
+  }
+  .ringBtn{font-size:12px;padding:6px 4px}
+  .gridWrap{
+    min-width:0 !important;
+    min-height:0 !important;
+    width:100%;
+    aspect-ratio:1/1;
+    padding:10px;
+    gap:8px;
+  }
+  input{font-size:20px}
+  .msg{font-size:12px;min-height:90px}
+}
 </style>
 </head>
 
 <body>
 <div class="card">
-<h1>為了錢錢 💰</h1>
-<div class="hint">
-為了錢錢。<br>
-外圈按鈕會告訴你「還有哪幾種可能賺法」。
-</div>
+  <h1>為了錢錢 💰</h1>
+  <div class="hint">
+    發家致富為了錢錢。<br>
+    外圈按鈕會告訴你可能的加總結果。
+  </div>
 
-<div class="ringBoard" id="board">
-  <div class="gridWrap" id="grid"></div>
-</div>
+  <div class="ringBoard" id="board">
+    <div class="gridWrap" id="grid"></div>
+  </div>
 
-<div class="actions">
-  <button class="btn ghost" id="btnClear">清空</button>
-</div>
+  <div class="actions">
+    <button class="btn ghost" id="btnClear">清空</button>
+  </div>
 
-<div class="msg" id="msg">為了錢錢，請輸入數字。</div>
+  <div class="msg" id="msg">為了錢錢，請輸入數字。</div>
 </div>
 
 <script>
-const msg = t => document.getElementById("msg").textContent = t;
-const boardEl = document.getElementById("board");
-const gridEl = document.getElementById("grid");
+const msg=t=>document.getElementById("msg").textContent=t;
+const boardEl=document.getElementById("board");
+const gridEl=document.getElementById("grid");
 const inputs=[];
 
+/* 建立輸入格 */
 for(let i=1;i<=9;i++){
   const c=document.createElement("div");c.className="cell";
   const idx=document.createElement("div");idx.className="idx";idx.textContent=i;
   const inp=document.createElement("input");
-
-  inp.type="text";
-  inp.inputMode="numeric";
-  inp.pattern="[1-9]";
-  inp.maxLength=1;
-  inp.autocomplete="off";
-  inp.spellcheck=false;
+  inp.type="text";inp.inputMode="numeric";inp.pattern="[1-9]";
+  inp.maxLength=1;inp.autocomplete="off";inp.spellcheck=false;
 
   inp.addEventListener("paste",e=>{
     e.preventDefault();
@@ -163,7 +187,7 @@ for(let i=1;i<=9;i++){
     inp.value=m?m[0]:"";
     if(!inp.value){msg("清空一格");return;}
     if(inputs.some(x=>x!==inp&&x.value===inp.value)){
-      inp.value="";msg("數字不能重複");return;
+      inp.value="";msg("數字不能重複阿哥");return;
     }
     msg("輸入："+inp.value);
   });
@@ -171,6 +195,7 @@ for(let i=1;i<=9;i++){
   c.append(idx,inp);gridEl.append(c);inputs.push(inp);
 }
 
+/* 工具 */
 const rows=r=>[(r-1)*3+1,(r-1)*3+2,(r-1)*3+3];
 const cols=c=>[c,c+3,c+6];
 const diag1=[1,5,9],diag2=[3,5,7];
@@ -180,46 +205,35 @@ function read(){
   for(let i=0;i<9;i++) if(inputs[i].value) b[i]=+inputs[i].value;
   return b;
 }
-
 function possible(b,idxs){
   const used=new Set(b.filter(v=>v));
   const rest=[1,2,3,4,5,6,7,8,9].filter(x=>!used.has(x));
   const empty=b.map((v,i)=>v?null:i).filter(v=>v!==null);
   const sums=new Set();
-
   function dfs(i,cur){
-    if(i===empty.length){
-      sums.add(idxs.reduce((a,p)=>a+cur[p-1],0));return;
-    }
+    if(i===empty.length){sums.add(idxs.reduce((a,p)=>a+cur[p-1],0));return;}
     for(const d of rest){
       if(cur.includes(d))continue;
-      cur[empty[i]]=d;
-      dfs(i+1,cur);
-      cur[empty[i]]=null;
+      cur[empty[i]]=d;dfs(i+1,cur);cur[empty[i]]=null;
     }
   }
   dfs(0,b.slice());
   return [...sums].sort((a,b)=>a-b);
 }
-
 function addBtn(r,c,t,cls,idxs){
   const b=document.createElement("button");
   b.className=`ringBtn ${cls}`;
   b.style.gridRow=r;b.style.gridColumn=c;
   b.textContent=t;
-  b.onclick=()=>{
-    const board=read();
-    const p=possible(board,idxs);
-    msg(`可能的總額：\n${p.join(", ")}`);
-  };
+  b.onclick=()=>msg("可能加總：\n"+possible(read(),idxs).join(", "));
   boardEl.append(b);
 }
 
+/* 外圈按鈕 */
 addBtn(1,1,"主對角","bDiag",diag1);
 addBtn(5,5,"主對角","bDiag",diag1);
 addBtn(1,5,"副對角","bDiag",diag2);
 addBtn(5,1,"副對角","bDiag",diag2);
-
 for(let i=1;i<=3;i++){
   addBtn(1,i+1,`欄${i}`,"bCol",cols(i));
   addBtn(5,i+1,`欄${i}`,"bCol",cols(i));
@@ -231,6 +245,7 @@ document.getElementById("btnClear").onclick=()=>{
   inputs.forEach(i=>i.value="");msg("重新為了錢錢");
 };
 
+/* PWA */
 if("serviceWorker"in navigator){
   navigator.serviceWorker.register("./sw.js");
 }

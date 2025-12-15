@@ -1,4 +1,4 @@
-const CACHE_NAME = "imrichmdfk-v1";
+const CACHE_NAME = "imrichmdfk-v2";
 const ASSETS = [
   "./",
   "./index.html",
