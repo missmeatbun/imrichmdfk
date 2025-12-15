@@ -14,7 +14,6 @@
 <meta name="apple-mobile-web-app-title" content="為了錢錢">
 
 <style>
-/* ===== 基本 ===== */
 body{
   font-family: system-ui,-apple-system,"Segoe UI",Arial,sans-serif;
   background:#f6f7fb;
@@ -36,13 +35,13 @@ body{
 h1{font-size:20px;margin:0 0 8px}
 .hint{color:#555;font-size:13px;margin-bottom:14px;line-height:1.6}
 
-/* ===== 外圈棋盤 ===== */
 .ringBoard{
   display:grid;
   grid-template-columns:96px 1fr 1fr 1fr 96px;
   grid-template-rows:56px 1fr 1fr 1fr 56px;
   gap:10px;
 }
+
 .ringBtn{
   border:0;border-radius:12px;
   padding:8px 6px;
@@ -56,7 +55,6 @@ h1{font-size:20px;margin:0 0 8px}
 .bCol{background:#10b981}
 .bDiag{background:#6f42c1}
 
-/* ===== 九宮格 ===== */
 .gridWrap{
   grid-column:2/5;
   grid-row:2/5;
@@ -94,10 +92,8 @@ input{
   outline:none;
 }
 
-/* 防誤觸放大 */
 .ringBtn,.btn,input{touch-action:manipulation}
 
-/* ===== 操作區 ===== */
 .actions{margin-top:14px;display:flex;gap:10px;flex-wrap:wrap}
 .btn{
   border:0;border-radius:12px;
@@ -115,10 +111,10 @@ input{
   font-size:13px;
   line-height:1.6;
   white-space:pre-wrap;
-  min-height:120px;
+  min-height:130px;
 }
 
-/* ===== 手機適配（修正 iPhone 13 超出） ===== */
+/* 手機適配（修正 iPhone 13 超出） */
 @media (max-width:430px){
   body{padding:10px;align-items:flex-start}
   .card{width:100%;padding:12px}
@@ -137,7 +133,7 @@ input{
     gap:8px;
   }
   input{font-size:20px}
-  .msg{font-size:12px;min-height:90px}
+  .msg{font-size:12px;min-height:105px}
 }
 </style>
 </head>
@@ -146,8 +142,8 @@ input{
 <div class="card">
   <h1>為了錢錢 💰</h1>
   <div class="hint">
-    發家致富為了錢錢。<br>
-    外圈按鈕會告訴你可能的加總結果。
+    外圈按鈕會顯示「可能加總」。<br>
+    也可以按「期望值最高建議」→ 推薦你要按哪個鍵（主對角/副對角/列/欄）。
   </div>
 
   <div class="ringBoard" id="board">
@@ -155,6 +151,7 @@ input{
   </div>
 
   <div class="actions">
+    <button class="btn" id="btnBest">期望值最高建議</button>
     <button class="btn ghost" id="btnClear">清空</button>
   </div>
 
@@ -162,91 +159,250 @@ input{
 </div>
 
 <script>
-const msg=t=>document.getElementById("msg").textContent=t;
-const boardEl=document.getElementById("board");
-const gridEl=document.getElementById("grid");
-const inputs=[];
+const msgEl = document.getElementById("msg");
+const msg = (t) => msgEl.textContent = t;
 
-/* 建立輸入格 */
+const boardEl = document.getElementById("board");
+const gridEl  = document.getElementById("grid");
+const inputs = [];
+
+/* ===== 你的獎金表：sum(6~24) => payout ===== */
+const PAYOUT = {
+  6:10000, 7:36, 8:720, 9:360, 10:80, 11:252, 12:108,
+  13:72, 14:54, 15:180, 16:72, 17:180, 18:119, 19:36,
+  20:306, 21:1080, 22:144, 23:1800, 24:360
+};
+const payoutOf = (sum) => (PAYOUT[sum] ?? 0);
+
+/* ===== 建立輸入格：嚴格 1~9、不可重複（含貼上） ===== */
 for(let i=1;i<=9;i++){
-  const c=document.createElement("div");c.className="cell";
-  const idx=document.createElement("div");idx.className="idx";idx.textContent=i;
-  const inp=document.createElement("input");
-  inp.type="text";inp.inputMode="numeric";inp.pattern="[1-9]";
-  inp.maxLength=1;inp.autocomplete="off";inp.spellcheck=false;
+  const c = document.createElement("div"); c.className="cell";
+  const idx = document.createElement("div"); idx.className="idx"; idx.textContent=i;
 
-  inp.addEventListener("paste",e=>{
+  const inp = document.createElement("input");
+  inp.type="text";
+  inp.inputMode="numeric";
+  inp.pattern="[1-9]";
+  inp.maxLength=1;
+  inp.autocomplete="off";
+  inp.spellcheck=false;
+
+  inp.addEventListener("paste", (e) => {
     e.preventDefault();
-    const m=(e.clipboardData.getData("text")||"").match(/[1-9]/);
-    inp.value=m?m[0]:"";
-    inp.dispatchEvent(new Event("input",{bubbles:true}));
+    const t = (e.clipboardData.getData("text")||"");
+    const m = t.match(/[1-9]/);
+    inp.value = m ? m[0] : "";
+    inp.dispatchEvent(new Event("input", {bubbles:true}));
   });
 
-  inp.addEventListener("input",()=>{
-    const m=inp.value.match(/[1-9]/);
-    inp.value=m?m[0]:"";
-    if(!inp.value){msg("清空一格");return;}
-    if(inputs.some(x=>x!==inp&&x.value===inp.value)){
-      inp.value="";msg("數字不能重複阿哥");return;
+  inp.addEventListener("input", () => {
+    const m = inp.value.match(/[1-9]/);
+    inp.value = m ? m[0] : "";
+    if(!inp.value){ msg("清空一格"); return; }
+    if(inputs.some(x => x !== inp && x.value === inp.value)){
+      inp.value = "";
+      msg("❗ 數字不能重複（1~9 每個只能用一次）");
+      return;
     }
-    msg("輸入："+inp.value);
+    msg("輸入：" + inp.value);
   });
 
-  c.append(idx,inp);gridEl.append(c);inputs.push(inp);
+  c.append(idx, inp);
+  gridEl.append(c);
+  inputs.push(inp);
 }
 
-/* 工具 */
-const rows=r=>[(r-1)*3+1,(r-1)*3+2,(r-1)*3+3];
-const cols=c=>[c,c+3,c+6];
-const diag1=[1,5,9],diag2=[3,5,7];
+/* ===== 線定義（你要的 8 個按鍵類型） ===== */
+const rows = r => [(r-1)*3+1,(r-1)*3+2,(r-1)*3+3];
+const cols = c => [c, c+3, c+6];
+const diagMain = [1,5,9]; // 主對角
+const diagAnti = [3,5,7]; // 副對角
 
-function read(){
-  const b=Array(9).fill(null);
-  for(let i=0;i<9;i++) if(inputs[i].value) b[i]=+inputs[i].value;
+const LINES = [
+  { key:"主對角", idxs: diagMain, cls:"bDiag" },
+  { key:"欄1",   idxs: cols(1),   cls:"bCol"  },
+  { key:"欄2",   idxs: cols(2),   cls:"bCol"  },
+  { key:"欄3",   idxs: cols(3),   cls:"bCol"  },
+  { key:"副對角", idxs: diagAnti, cls:"bDiag" },
+  { key:"列1",   idxs: rows(1),   cls:"bRow"  },
+  { key:"列2",   idxs: rows(2),   cls:"bRow"  },
+  { key:"列3",   idxs: rows(3),   cls:"bRow"  }
+];
+
+/* ===== 讀盤面 ===== */
+function readBoard(){
+  const b = Array(9).fill(null);
+  for(let i=0;i<9;i++){
+    const v = inputs[i].value.trim();
+    if(v) b[i] = Number(v);
+  }
   return b;
 }
-function possible(b,idxs){
-  const used=new Set(b.filter(v=>v));
-  const rest=[1,2,3,4,5,6,7,8,9].filter(x=>!used.has(x));
-  const empty=b.map((v,i)=>v?null:i).filter(v=>v!==null);
-  const sums=new Set();
-  function dfs(i,cur){
-    if(i===empty.length){sums.add(idxs.reduce((a,p)=>a+cur[p-1],0));return;}
-    for(const d of rest){
-      if(cur.includes(d))continue;
-      cur[empty[i]]=d;dfs(i+1,cur);cur[empty[i]]=null;
+
+/* ===== 計算該線 sum ===== */
+function lineSum(board, idxs){
+  return idxs.reduce((acc, pos) => acc + (board[pos-1] ?? 0), 0);
+}
+
+/* ===== 枚舉所有可能完成填法（回傳 iterator） ===== */
+function enumerateCompletions(board){
+  const used = new Set(board.filter(v => v !== null));
+  const remaining = [];
+  for(let d=1; d<=9; d++) if(!used.has(d)) remaining.push(d);
+
+  const emptyPos = [];
+  for(let i=0;i<9;i++) if(board[i] === null) emptyPos.push(i);
+
+  // 總數 = (n)!
+  let total = 1;
+  for(let k=2;k<=emptyPos.length;k++) total *= k;
+
+  function* gen(posIdx, avail, cur){
+    if(posIdx === emptyPos.length){
+      yield cur;
+      return;
+    }
+    const at = emptyPos[posIdx];
+    for(let i=0;i<avail.length;i++){
+      const d = avail[i];
+      cur[at] = d;
+      const nextAvail = avail.slice(0,i).concat(avail.slice(i+1));
+      yield* gen(posIdx+1, nextAvail, cur);
+      cur[at] = null;
     }
   }
-  dfs(0,b.slice());
-  return [...sums].sort((a,b)=>a-b);
-}
-function addBtn(r,c,t,cls,idxs){
-  const b=document.createElement("button");
-  b.className=`ringBtn ${cls}`;
-  b.style.gridRow=r;b.style.gridColumn=c;
-  b.textContent=t;
-  b.onclick=()=>msg("可能加總：\n"+possible(read(),idxs).join(", "));
-  boardEl.append(b);
+
+  return { total, iter: () => gen(0, remaining, board.slice()) };
 }
 
-/* 外圈按鈕 */
-addBtn(1,1,"主對角","bDiag",diag1);
-addBtn(5,5,"主對角","bDiag",diag1);
-addBtn(1,5,"副對角","bDiag",diag2);
-addBtn(5,1,"副對角","bDiag",diag2);
-for(let i=1;i<=3;i++){
-  addBtn(1,i+1,`欄${i}`,"bCol",cols(i));
-  addBtn(5,i+1,`欄${i}`,"bCol",cols(i));
-  addBtn(i+1,1,`列${i}`,"bRow",rows(i));
-  addBtn(i+1,5,`列${i}`,"bRow",rows(i));
+/* ===== 可能加總（原本功能）改成「帶獎金」顯示 ===== */
+function possibleSumsWithPayout(board, idxs){
+  const e = enumerateCompletions(board);
+  const sums = new Set();
+
+  for(const b of e.iter()){
+    sums.add(lineSum(b, idxs));
+  }
+  const sorted = [...sums].sort((a,b)=>a-b);
+
+  // 同時顯示有獎金的項目
+  const withPay = sorted
+    .filter(s => s >= 6 && s <= 24)
+    .map(s => `${s}=${payoutOf(s)}`);
+
+  return { total:e.total, sums: sorted, withPay };
 }
 
-document.getElementById("btnClear").onclick=()=>{
-  inputs.forEach(i=>i.value="");msg("重新為了錢錢");
-};
+/* ===== 期望值 EV：基於「所有完成填法等機率」 ===== */
+function expectedValue(board, idxs){
+  const e = enumerateCompletions(board);
 
-/* PWA */
-if("serviceWorker"in navigator){
+  let acc = 0;
+  const counts = new Map(); // sum -> count（用來顯示一些分佈）
+  let checked = 0;
+
+  for(const b of e.iter()){
+    checked++;
+    const s = lineSum(b, idxs);
+    const p = payoutOf(s);
+    acc += p;
+
+    // 記錄 sum 出現次數（只記 6~24 以免太雜）
+    if(s >= 6 && s <= 24){
+      counts.set(s, (counts.get(s) || 0) + 1);
+    }
+  }
+
+  const ev = acc / e.total;
+
+  // 取出前幾個最常出現的 sum（6~24）
+  const top = [...counts.entries()]
+    .sort((a,b)=>b[1]-a[1])
+    .slice(0, 6)
+    .map(([s,c])=>`${s}×${c}`);
+
+  return { ev, total:e.total, checked, topSums: top };
+}
+
+/* ===== 外圈按鈕（16顆） ===== */
+function addRingButton(row, col, text, cls, idxs, title){
+  const btn = document.createElement("button");
+  btn.className = `ringBtn ${cls}`;
+  btn.style.gridRow = row;
+  btn.style.gridColumn = col;
+  btn.textContent = text;
+
+  btn.addEventListener("click", () => {
+    const board = readBoard();
+    const res = possibleSumsWithPayout(board, idxs);
+
+    msg(
+      `${title}\n` +
+      `可能加總：${res.sums.join(", ")}\n\n` +
+      (res.withPay.length
+        ? `其中有獎金(6~24)：\n${res.withPay.join("，")}`
+        : `其中沒有落在 6~24 的獎金區間`)
+    );
+  });
+
+  boardEl.appendChild(btn);
+}
+
+/* 對角（四角兩兩對應） */
+addRingButton(1,1, "主對角", "bDiag", diagMain, "主對角（1,5,9）");
+addRingButton(5,5, "主對角", "bDiag", diagMain, "主對角（1,5,9）");
+addRingButton(1,5, "副對角", "bDiag", diagAnti, "副對角（3,5,7）");
+addRingButton(5,1, "副對角", "bDiag", diagAnti, "副對角（3,5,7）");
+
+/* 上下：欄1~3 */
+for(let c=1;c<=3;c++){
+  const idxs = cols(c);
+  addRingButton(1, c+1, `欄${c}`, "bCol", idxs, `欄${c}（${idxs.join(",")}）`);
+  addRingButton(5, c+1, `欄${c}`, "bCol", idxs, `欄${c}（${idxs.join(",")}）`);
+}
+
+/* 左右：列1~3 */
+for(let r=1;r<=3;r++){
+  const idxs = rows(r);
+  addRingButton(r+1, 1, `列${r}`, "bRow", idxs, `列${r}（${idxs.join(",")}）`);
+  addRingButton(r+1, 5, `列${r}`, "bRow", idxs, `列${r}（${idxs.join(",")}）`);
+}
+
+/* ===== 期望值最高建議 ===== */
+document.getElementById("btnBest").addEventListener("click", () => {
+  const board = readBoard();
+  const filledCount = board.filter(v => v !== null).length;
+
+  // 9! = 362,880：手機仍可算，但我提醒一下
+  // 你填越多，會越快
+  const results = LINES.map(line => {
+    const r = expectedValue(board, line.idxs);
+    return { name: line.key, ev: r.ev, total: r.total, top: r.topSums };
+  }).sort((a,b)=>b.ev-a.ev);
+
+  const best = results[0];
+
+  const linesText = results.map((x, i) =>
+    `${i===0 ? "✅" : "  "} ${x.name}：EV=${Math.round(x.ev).toLocaleString()}（完成填法${x.total}種）` +
+    (x.top.length ? `；常見sum：${x.top.join(", ")}` : "")
+  ).join("\n");
+
+  msg(
+    `目前已填 ${filledCount} 格\n` +
+    `👉 建議按：${best.name}\n` +
+    `（期望值 EV ≈ ${Math.round(best.ev).toLocaleString()}）\n\n` +
+    `${linesText}`
+  );
+});
+
+/* ===== 清空 ===== */
+document.getElementById("btnClear").addEventListener("click", () => {
+  inputs.forEach(i => i.value = "");
+  msg("已清空，重新為了錢錢。");
+});
+
+/* ===== PWA：註冊 Service Worker ===== */
+if("serviceWorker" in navigator){
   navigator.serviceWorker.register("./sw.js");
 }
 </script>
